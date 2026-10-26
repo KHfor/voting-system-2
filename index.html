@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>白票・青 投票</title>
+<title>白票・青票投票</title>
 <style>
 :root{--bg:#f6f6f3;--card:#fff;--text:#1d1d1b;--sub:#6b6b66;--line:#e2e2dc;--blue:#2f6bff;--blue-t:#fff;--wl:#bdbdb5;--danger:#c4372c}
 @media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#222221;--text:#f2f2ee;--sub:#a0a09a;--line:#363633;--blue:#5b8cff;--blue-t:#0b1020;--wl:#5a5a55;--danger:#ff7b6e}}
@@ -50,7 +50,7 @@ function renderCreate(){
   '<input id="q" maxlength="120" placeholder="例：次の飲み会、参加しますか？">'+
   '<input id="k" type="password" placeholder="作成者の合言葉（6文字以上・開票に使います）">'+
   '<button class="bm" id="go">投票を作成する</button>'+
-  '<p class="note">選択肢は「白票」と「青」。開票するまで票の状況は誰にも分かりません。合言葉は忘れないように。</p></div>';
+  '<p class="note">選択肢は「白票」と「青票」。開票するまで票の状況は誰にも分かりません。合言葉は忘れないように。</p></div>';
   document.getElementById('go').onclick=async function(){
     var q=document.getElementById('q').value, k=document.getElementById('k').value;
     var r=await sb.rpc('create_poll',{q:q,key:k});
@@ -74,8 +74,8 @@ function renderPoll(){
   }
   app.innerHTML='<div class="card"><span class="badge">投票受付中</span><h2>'+esc(poll.question)+'</h2>'+
   '<button class="bw'+(myVote==='white'?' sel':'')+'" data-v="white">白票</button>'+
-  '<button class="bb'+(myVote==='blue'?' sel':'')+'" data-v="blue">青</button>'+
-  '<p class="note">'+(myVote?'「'+(myVote==='white'?'白票':'青')+'」に投票済み。締め切りまで変更できます。':'どちらかをタップして投票してください。')+' 結果は開票まで非表示です。</p></div>'+
+  '<button class="bb'+(myVote==='blue'?' sel':'')+'" data-v="blue">青票</button>'+
+  '<p class="note">'+(myVote?'「'+(myVote==='white'?'白票':'青票')+'」に投票済み。締め切りまで変更できます。':'どちらかをタップして投票してください。')+' 結果は開票まで非表示です。</p></div>'+
   '<div class="card"><h1>作成者の方</h1><input id="k" type="password" placeholder="合言葉">'+
   '<button class="bd" id="close">投票を締め切って開票する</button></div>';
   app.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){vote(b.dataset.v)}});
