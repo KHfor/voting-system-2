@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>白票・青 投票</title>
+<style>
+:root{--bg:#f6f6f3;--card:#fff;--text:#1d1d1b;--sub:#6b6b66;--line:#e2e2dc;--blue:#2f6bff;--blue-t:#fff;--wl:#bdbdb5;--danger:#c4372c}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#222221;--text:#f2f2ee;--sub:#a0a09a;--line:#363633;--blue:#5b8cff;--blue-t:#0b1020;--wl:#5a5a55;--danger:#ff7b6e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;line-height:1.6}
+main{max-width:480px;margin:0 auto;padding:24px 16px 48px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+h1{font-size:13px;color:var(--sub);font-weight:600;margin:0 0 8px}
+h2{font-size:22px;margin:0 0 16px;line-height:1.4;word-break:break-word}
+.badge{display:inline-block;font-size:12px;padding:2px 10px;border-radius:99px;border:1px solid var(--line);color:var(--sub);margin-bottom:12px}
+input{width:100%;font-size:16px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin-bottom:12px}
+button{font:inherit;font-size:17px;font-weight:600;width:100%;padding:16px;border-radius:14px;border:2px solid transparent;cursor:pointer;margin-bottom:10px;color:var(--text)}
+.bw{background:var(--card);border-color:var(--wl)}
+.bb{background:var(--blue);color:var(--blue-t)}
+.bm{background:var(--text);color:var(--bg)}
+.bd{background:transparent;color:var(--danger);border-color:var(--danger)}
+button.sel{outline:3px solid var(--text);outline-offset:2px}
+.note{font-size:13px;color:var(--sub);margin:4px 0 0;word-break:break-all}
+.row{margin-bottom:14px}
+.row .l{display:flex;justify-content:space-between;font-weight:600;margin-bottom:6px}
+.bar{height:20px;border-radius:10px;background:var(--bg);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%}
+</style>
+</head>
+<body>
+<main id="app"><div class="card"><p class="note">読み込み中…</p></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ▼ Supabase の Project Settings → API からコピーして貼り付け（anon public キー）
+var SUPABASE_URL = 'https://xxxxxxxx.supabase.co';
+var SUPABASE_ANON_KEY = 'ここにanon publicキー';
+// ▲
+
+var app = document.getElementById('app');
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+var pid = new URLSearchParams(location.search).get('p');
+var poll = null, myVote = null, timer = null;
+
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function msg(t){app.innerHTML='<div class="card"><p class="note">'+esc(t)+'</p></div>'}
+
+function renderCreate(){
+  app.innerHTML='<div class="card"><h1>新しい投票</h1><h2>議題を決めましょう</h2>'+
+  '<input id="q" maxlength="120" placeholder="例：次の飲み会、参加しますか？">'+
+  '<input id="k" type="password" placeholder="作成者の合言葉（6文字以上・開票に使います）">'+
+  '<button class="bm" id="go">投票を作成する</button>'+
+  '<p class="note">選択肢は「白票」と「青」。開票するまで票の状況は誰にも分かりません。合言葉は忘れないように。</p></div>';
+  document.getElementById('go').onclick=async function(){
+    var q=document.getElementById('q').value, k=document.getElementById('k').value;
+    var r=await sb.rpc('create_poll',{q:q,key:k});
+    if(r.error){alert('作成できませんでした。議題と6文字以上の合言葉を確認してください。');return}
+    var url=location.origin+location.pathname+'?p='+r.data;
+    app.innerHTML='<div class="card"><span class="badge">作成しました</span><h2>参加者にこのリンクを送ってください</h2>'+
+    '<p class="note" style="font-size:15px;color:var(--text)">'+esc(url)+'</p><br>'+
+    '<button class="bm" id="cp">リンクをコピー</button>'+
+    '<button class="bw" id="open">この投票ページを開く</button></div>';
+    document.getElementById('cp').onclick=function(){navigator.clipboard.writeText(url).then(function(){alert('コピーしました')})};
+    document.getElementById('open').onclick=function(){location.href=url};
+  };
+}
+
+function renderPoll(){
+  if(poll.status==='closed'){
+    var w=poll.white||0,b=poll.blue||0,t=w+b;
+    var row=function(n,v,c){var p=t?Math.round(v/t*100):0;return '<div class="row"><div class="l"><span>'+n+'</span><span>'+v+'票（'+p+'%）</span></div><div class="bar"><i style="width:'+p+'%;background:'+c+'"></i></div></div>'};
+    app.innerHTML='<div class="card"><span class="badge">開票結果</span><h2>'+esc(poll.question)+'</h2>'+row('白票',w,'var(--wl)')+row('青',b,'var(--blue)')+'<p class="note">総投票数 '+t+'票</p></div>';
+    return;
+  }
+  app.innerHTML='<div class="card"><span class="badge">投票受付中</span><h2>'+esc(poll.question)+'</h2>'+
+  '<button class="bw'+(myVote==='white'?' sel':'')+'" data-v="white">白票</button>'+
+  '<button class="bb'+(myVote==='blue'?' sel':'')+'" data-v="blue">青</button>'+
+  '<p class="note">'+(myVote?'「'+(myVote==='white'?'白票':'青')+'」に投票済み。締め切りまで変更できます。':'どちらかをタップして投票してください。')+' 結果は開票まで非表示です。</p></div>'+
+  '<div class="card"><h1>作成者の方</h1><input id="k" type="password" placeholder="合言葉">'+
+  '<button class="bd" id="close">投票を締め切って開票する</button></div>';
+  app.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){vote(b.dataset.v)}});
+  document.getElementById('close').onclick=closePoll;
+}
+
+async function vote(v){
+  var s=(await sb.auth.getSession()).data.session;
+  var r=await sb.from('votes').upsert({poll_id:pid,user_id:s.user.id,choice:v});
+  if(r.error){alert('投票できませんでした。締め切られた可能性があります。');load();return}
+  myVote=v; renderPoll();
+}
+
+async function closePoll(){
+  var k=document.getElementById('k').value;
+  if(!k){document.getElementById('k').focus();return}
+  if(!confirm('締め切って開票します。元に戻せません。よろしいですか？'))return;
+  var r=await sb.rpc('close_poll',{pid:pid,key:k});
+  if(r.error){alert('合言葉が違います');return}
+  load();
+}
+
+async function load(){
+  var r=await sb.from('polls').select('*').eq('id',pid).maybeSingle();
+  if(r.error||!r.data){msg('この投票は見つかりませんでした。');return}
+  var prev=poll&&poll.status; poll=r.data;
+  if(poll.status==='open'&&myVote===null){
+    var s=(await sb.auth.getSession()).data.session;
+    var m=await sb.from('votes').select('choice').eq('poll_id',pid).eq('user_id',s.user.id).maybeSingle();
+    if(m.data)myVote=m.data.choice;
+  }
+  var typing=document.activeElement&&document.activeElement.tagName==='INPUT';
+  if(!typing||prev!==poll.status)renderPoll();
+  if(poll.status==='closed'&&timer){clearInterval(timer);timer=null}
+}
+
+(async function(){
+  try{
+    var s=await sb.auth.getSession();
+    if(!s.data.session){var a=await sb.auth.signInAnonymously(); if(a.error)throw a.error}
+  }catch(e){msg('接続できませんでした。Supabaseの設定（匿名サインインの有効化）を確認してください。');return}
+  if(!pid){renderCreate();return}
+  await load();
+  timer=setInterval(load,5000);
+})();
+</script>
+</body>
+</html>
