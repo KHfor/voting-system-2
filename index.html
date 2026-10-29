@@ -69,7 +69,7 @@ function renderPoll(){
   if(poll.status==='closed'){
     var w=poll.white||0,b=poll.blue||0,t=w+b;
     var row=function(n,v,c){var p=t?Math.round(v/t*100):0;return '<div class="row"><div class="l"><span>'+n+'</span><span>'+v+'票（'+p+'%）</span></div><div class="bar"><i style="width:'+p+'%;background:'+c+'"></i></div></div>'};
-    app.innerHTML='<div class="card"><span class="badge">開票結果</span><h2>'+esc(poll.question)+'</h2>'+row('白票',w,'var(--wl)')+row('青',b,'var(--blue)')+'<p class="note">総投票数 '+t+'票</p></div>';
+    app.innerHTML='<div class="card"><span class="badge">開票結果</span><h2>'+esc(poll.question)+'</h2>'+row('白票',w,'var(--wl)')+row('青票',b,'var(--blue)')+'<p class="note">総投票数 '+t+'票</p></div>';
     return;
   }
   app.innerHTML='<div class="card"><span class="badge">投票受付中</span><h2>'+esc(poll.question)+'</h2>'+
