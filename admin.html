@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>投票 管理者ページ</title>
+<style>
+:root{--bg:#f6f6f3;--card:#fff;--text:#1d1d1b;--sub:#6b6b66;--line:#e2e2dc;--danger:#c4372c}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--card:#222221;--text:#f2f2ee;--sub:#a0a09a;--line:#363633;--danger:#ff7b6e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;line-height:1.6}
+main{max-width:520px;margin:0 auto;padding:24px 16px 48px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+h1{font-size:20px;margin:0 0 12px}
+h2{font-size:17px;margin:0 0 6px;word-break:break-word}
+.badge{display:inline-block;font-size:12px;padding:2px 10px;border-radius:99px;border:1px solid var(--line);color:var(--sub);margin-right:6px}
+input{width:100%;font-size:16px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);margin-bottom:10px}
+button{font:inherit;font-size:15px;font-weight:600;padding:10px 14px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;margin:6px 6px 0 0}
+button.main{background:var(--text);color:var(--bg);border-color:var(--text);width:100%;font-size:17px;padding:14px;margin:0}
+button.d{color:var(--danger);border-color:var(--danger)}
+.note{font-size:13px;color:var(--sub);margin:4px 0 0;word-break:break-all}
+</style>
+</head>
+<body>
+<main id="app">
+<div class="card">
+<h1>管理者ページ</h1>
+<input id="m" type="password" placeholder="管理者の合言葉">
+<button class="main" id="load">投票の一覧を表示</button>
+<p class="note">合言葉を忘れた投票の「作成者の合言葉」を再設定できます。元の合言葉を表示することはできません（保存されていないため）。</p>
+</div>
+<div id="list"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script>
+// ▼ index.html と同じ値を貼り付け
+var SUPABASE_URL = 'https://xxxxxxxx.supabase.co';
+var SUPABASE_ANON_KEY = 'ここにanon publicキー';
+// ▲
+
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+var master = '';
+var list = document.getElementById('list');
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+async function load(){
+  master = document.getElementById('m').value;
+  if(!master){document.getElementById('m').focus();return}
+  var r = await sb.rpc('admin_list',{master:master});
+  if(r.error){list.innerHTML='<div class="card"><p class="note">開けませんでした：合言葉が違うか、設定（admin.sql）が未実行です。<br>'+esc(r.error.message)+'</p></div>';return}
+  if(!r.data.length){list.innerHTML='<div class="card"><p class="note">投票はまだありません。</p></div>';return}
+  var base = location.origin + location.pathname.replace(/admin\.html$/,'');
+  list.innerHTML = r.data.map(function(p){
+    var d = new Date(p.created_at).toLocaleString('ja-JP');
+    var url = base + '?p=' + p.id;
+    return '<div class="card"><h2>'+esc(p.question)+'</h2>'+
+      '<span class="badge">'+(p.status==='open'?'受付中':'開票済み')+'</span>'+
+      '<span class="badge">'+p.voters+'人が投票</span><span class="badge">'+esc(d)+'</span>'+
+      '<p class="note">'+esc(url)+'</p>'+
+      '<button data-a="reset" data-id="'+p.id+'">合言葉を再設定</button>'+
+      (p.status==='open'?'<button class="d" data-a="close" data-id="'+p.id+'">強制的に開票</button>':'')+
+      '<button class="d" data-a="del" data-id="'+p.id+'">削除</button></div>';
+  }).join('');
+  list.querySelectorAll('button').forEach(function(b){b.onclick=function(){act(b.dataset.a,b.dataset.id)}});
+}
+
+async function act(a,id){
+  var r;
+  if(a==='reset'){
+    var k = prompt('新しい作成者の合言葉（6文字以上）');
+    if(!k) return;
+    r = await sb.rpc('admin_reset_key',{pid:id,new_key:k,master:master});
+    alert(r.error ? '再設定できませんでした（6文字以上にしてください）' : '再設定しました。新しい合言葉で開票できます。');
+    return;
+  }
+  if(a==='close'){
+    if(!confirm('この投票を今すぐ締め切って開票します。元に戻せません。よろしいですか？')) return;
+    r = await sb.rpc('admin_close_poll',{pid:id,master:master});
+  } else {
+    if(!confirm('この投票と票をすべて削除します。元に戻せません。よろしいですか？')) return;
+    r = await sb.rpc('admin_delete_poll',{pid:id,master:master});
+  }
+  if(r.error){alert('失敗しました');return}
+  load();
+}
+document.getElementById('load').onclick = load;
+</script>
+</body>
+</html>
